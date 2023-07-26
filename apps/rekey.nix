@@ -31,6 +31,14 @@
 
   showOutPath = _: hostCfg: "echo ${escapeShellArg (builtins.unsafeDiscardStringContext (toString (derivationFor hostCfg).drv))}";
 
+  # Run script for each architecture (useful for building under binfmt emulation)
+  rekeyCommandsForHostImpure = hostName: hostCfg: let
+    appHostSystem = hostCfg.pkgs.system;
+    in ''
+      echo "Building and storing secrets for system ${appHostSystem}"
+      nix run --extra-sandbox-paths /tmp --impure --system "${appHostSystem}" "${self.outPath}#_rekey-save-outputs";
+    '';
+
   rekeyCommandsForHost = hostName: hostCfg: let
     # The derivation containing the resulting rekeyed secrets
     rekeyedSecrets = import ../nix/output-derivation.nix {
@@ -167,5 +175,5 @@ in
 
     # Pivot to another script that has /tmp available in its sandbox
     # and is impure in case the master key is located elsewhere on the system
-    nix run --extra-sandbox-paths /tmp --impure "${self.outPath}#_rekey-save-outputs";
+    ${concatStringsSep "\n" (mapAttrsToList rekeyCommandsForHostImpure nixosConfigurations)}
   ''
